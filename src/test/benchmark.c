@@ -596,11 +596,64 @@ time_thread_create (void)
         rdtscll(end);
 
 		DELAY(10000);
-		PRINT("Trial %u %llu \n", i, end-start);
+		PRINT("THREAD CREATE Trial %u %llu \n", i, end-start);
 
         JOIN_FUNC(t, NULL);
 
     }
+}
+
+int time_thread_fork(int nump, int numt);
+int time_thread_fork(int nump, int numt)
+{
+    int i,j;
+
+    PRINT("Starting on threads fork/join stress test (%d passes, %d threads)\n",nump,numt);
+
+    nk_thread_id_t t;
+    uint64_t start,end;
+    
+    for (i=0;i<nump;i++) {
+        // PRINT("Starting to fork %d threads on pass %d\n",numt,i);
+        for (j=0;j<numt;j++) {
+                rdtscll(start);
+                t = nk_thread_fork();
+                
+            if (t==NK_BAD_THREAD_ID) {
+                PRINT("Failed to fork thread\n");
+                return 0;
+            }
+            if (t==0) { 
+                // child thread
+                rdtscll(end);
+                PRINT("THREAD FORK Trial %u child %llu \n", i, end-start);
+                char buf[32];
+                struct nk_thread *t = get_cur_thread();
+                snprintf(buf,32, "test_fj_%d_%d",i,j);
+                nk_thread_name(get_cur_thread(),buf);
+                get_cur_thread()->vc = get_cur_thread()->parent->vc;
+                // PRINT("Hello from forked thread tid %lu - %d pass %d\n", t->tid, j, i);
+                // if the function being forked is inlined
+                // we must explicitly invoke
+                // nk_thread_exit(0);
+                // here
+                return 0;
+            } else {
+                // parent thread just forks again
+                rdtscll(end);
+                PRINT("THREAD FORK Trial %u parent %llu \n", i, end-start);
+            }
+	    }
+        // PRINT("Forked %d threads in pass %d\n", j, i);
+        if (nk_join_all_children(0)) {
+            PRINT("Failed to join forked threads on pass %d\n",i);
+            return -1;
+        }
+        // PRINT("Joined %d forked threads in pass %d\n", j, i);
+        nk_sched_reap(1); // clean up unconditionally
+    }
+    PRINT("Done with thread fork/join stress test (SUCCESS)\n");
+    return 0;
 }
 
 
@@ -648,7 +701,7 @@ time_thread_run (void)
 		JOIN_FUNC(t, NULL);
 
 		thread_run_done = 0;
-
+        
 		PRINT("TRIAL %u %llu cycles\n", i, end-start);
 	}
 }
@@ -687,7 +740,6 @@ time_thread_both (void)
 		JOIN_FUNC(t, NULL);
 
 		thread_run_done = 0;
-
 		PRINT("TRIAL %u %llu cycles\n", i, end-start);
 	}
 }
@@ -1127,7 +1179,9 @@ run_benchmarks(void)
     time_syscall();
     PRINT("Timing thread creations and launches\n");
     time_thread_both();
-
+    printf("Timing thread creations and launches\n");
+    time_thread_create();
+    time_thread_fork(10, 10);
     
 }
 
@@ -1138,6 +1192,8 @@ int main () {
 #ifdef CREATE
     time_thread_create();
 #endif
+
+
 
 #ifdef CREATE_LONG
     time_threads_long();
