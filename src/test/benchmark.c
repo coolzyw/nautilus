@@ -61,6 +61,7 @@
 #include <nautilus/nemo.h>
 #include <nautilus/pmc.h>
 #include <nautilus/shell.h>
+#include <nautilus/task.h>
 
 #endif
 
@@ -833,7 +834,7 @@ time_ctx_switch (void)
 		rdtscll(end);
 
 		/* is this accurate? */
-		PRINT("TRIAL %u %llu\n", i, (end-start)/(YIELD_COUNT*2));
+		PRINT("CONTEXT SWITCH TRIAL %u %llu\n", i, (end-start)/(YIELD_COUNT*2));
 
 		JOIN_FUNC(t[0], NULL);
 		JOIN_FUNC(t[1], NULL);
@@ -1111,6 +1112,71 @@ time_sync_event (void)
     }
 }
 
+#define NUM_TASKS  512
+static struct nk_task *tasks[NUM_TASKS];
+
+struct test_arg {
+    int pass;
+    int task;
+};
+
+static void *task_func(void *in)
+{
+    struct test_arg *arg = (struct test_arg *)in;
+    
+    // PRINT("Hello from task %lu pass %d\n", arg->task, arg->pass);
+
+    void *ret = (void*)(uint64_t)(arg->task);
+    
+    free(arg);
+    
+    return ret;
+}
+
+static int test_create_wait(int nump, int numt)
+{
+    int i,j;
+    uint64_t start = 0;
+	uint64_t end = 0;
+    struct nk_task_stats stats;
+
+    PRINT("Starting on task create wait stress test (%d passes, %d tasks)\n",nump,numt);
+    
+    for (i=0;i<nump;i++) {
+	//PRINT("Starting to launch %d tasks on pass %d\n",numt,i);
+	for (j=0;j<numt;j++) { 
+	    struct test_arg *arg = (struct test_arg *) malloc(sizeof(struct test_arg));
+	    arg->pass=i;
+	    arg->task=j;
+
+        rdtscll(start);
+	    tasks[j] = nk_task_produce(-1,0,task_func,arg,0);
+	    if (!tasks[j]) { 
+		PRINT("Failed to launch task %d on pass %d\n", j,i);
+		return -1;
+	    }
+        rdtscll(end);
+        PRINT("TASK CREATE TRIAL %u %llu cycles\n", i, end-start);
+
+	}
+	//PRINT("Launched %d tasks in pass %d\n", j, i);
+	for (j=0;j<numt;j++) {
+	    void *result;
+	    if (nk_task_wait(tasks[j], &result, &stats)) {
+		PRINT("Failed to wait on task %d pass %d\n", j, i);
+		return -1;
+	    } else {
+		//PRINT("Completed task %d pass %d result: %p\n", j,i,result);
+	    }
+	}
+	//PRINT("Waited on %d tasks in pass %d\n", numt, i);
+    }
+    PRINT("Done with task create wait stress test (SUCCESS)\n");
+    return 0;
+}
+
+
+
 #ifndef __USER
 #if 0
 void page_alloc_test(void);
@@ -1182,6 +1248,10 @@ run_benchmarks(void)
     printf("Timing thread creations and launches\n");
     time_thread_create();
     time_thread_fork(10, 10);
+    printf("Timing context switch \n");
+    time_ctx_switch();
+    printf("Timing task create \n");
+    test_create_wait(10, 10);
     
 }
 
