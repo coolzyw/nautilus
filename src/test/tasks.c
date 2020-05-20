@@ -188,6 +188,9 @@ int test_tasks()
 
 }
 
+int test_task_fork(){
+
+}
 
 static int
 handle_tasks (char * buf, void * priv)

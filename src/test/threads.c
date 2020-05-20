@@ -302,7 +302,8 @@ return fork_join;
 static int
 handle_threads (char * buf, void * priv)
 {
-    test_threads();
+   // test_threads();
+  int create_join = test_create_join(NUM_PASSES,NUM_THREADS);
     return 0;
 }
 

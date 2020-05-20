@@ -316,22 +316,26 @@ nk_thread_create (nk_thread_fun_t fun,
     nk_thread_t * t = NULL;
     int placement_cpu = bound_cpu<0 ? nk_sched_initial_placement() : bound_cpu;
     nk_stack_size_t required_stack_size = stack_size ? stack_size: PAGE_SIZE;
-
+    rdtsc();
+    uint64_t start = rdtsc();
+    uint64_t end = rdtsc();
     // First try to get a thread from the scheduler's pools
-    if ((t=nk_sched_reanimate(required_stack_size,
-			      placement_cpu))) {
+  t=nk_sched_reanimate(required_stack_size,
+                        placement_cpu);
+  end = rdtsc();
+  nk_vc_printf("reanimate thread-cycle count = %d\n", end-start);
+  start = rdtsc();
+    if (t) {
 	// we have succeeded in reanimating a dead thread, so
 	// now all we need to do is the management that
 	// nk_thread_destroy() would otherwise have done
 
 	nk_thread_brain_wipe(t);
-
-	
     } else {
 
 	// failed to reanimate existing dead thread, so we need to
 	// make our own
-    
+        start = rdtsc();
 	t = malloc_specific(sizeof(nk_thread_t),placement_cpu);
 
 	if (!t) {
@@ -351,17 +355,23 @@ nk_thread_create (nk_thread_fun_t fun,
 	    free(t);
 	    return -EINVAL;
 	}
-	
+      end = rdtsc();
+      nk_vc_printf("make our own thread-cycle count = %d\n", end-start);
     }
-    
-    // from this point, if we are using a reanimated thread, and
+
+  // from this point, if we are using a reanimated thread, and
     // we fail, we can safely free the thread the same as we
     // would if we were newly allocating it.  
-
+    start = rdtsc();
     if (_nk_thread_init(t, t->stack, is_detached, bound_cpu, placement_cpu, get_cur_thread()) < 0) {
         THREAD_ERROR("Could not initialize thread\n");
         goto out_err;
     }
+    end = rdtsc();
+    nk_vc_printf("thread init-cycle count = %d\n", end-start);
+
+
+    start = rdtsc();
 
     t->status = NK_THR_INIT;
 
@@ -382,7 +392,9 @@ nk_thread_create (nk_thread_fun_t fun,
     if (tid) {
         *tid = (nk_thread_id_t)t;
     }
+    end = rdtsc();
 
+    nk_vc_printf("move thread to scheduler-cycle count = %d\n\n", end-start);
     THREAD_DEBUG("Thread create creating new thread with t=%p, tid=%lu\n", t, t->tid);
 
     return 0;
