@@ -332,7 +332,7 @@ int nk_semaphore_down_timeout(struct nk_semaphore *s, uint64_t timeout_ns)
 	    return 0;
 	}
 	
-	nk_sched_yield(0); // alternatively actually sleep here....
+	nk_sched_yield(0, 0); // alternatively actually sleep here....
 	now = nk_sched_get_realtime();
 	
     } while ((now-start)<timeout_ns);

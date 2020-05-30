@@ -755,6 +755,7 @@ static volatile int go;
 typedef struct switch_cont {
 	BARRIER_T * b;
 	unsigned char id; /* 0 or 1 */
+    uint64_t benchmark;
 } switch_cont_t;
 
 
@@ -765,17 +766,21 @@ thread_switch_func FUNC_HDR
 
 	ready[t->id] = 1;
 
-	YIELD();
+    uint64_t benchmark = 0;
 
-	while (!go) { YIELD(); }
+	benchmark += YIELD(1);
+
+	while (!go) { benchmark += YIELD(1); }
 //BARRIER_WAIT(t->b);
 
 	int i;
 	for (i = 0; i < YIELD_COUNT; i++) {
-		YIELD();
+		benchmark += YIELD(1);
 	}
 
 	done[t->id] = 1;
+
+    t->benchmark = benchmark;
 
 	RETURN;
 }
@@ -797,8 +802,10 @@ time_ctx_switch (void)
 	/* setup thread arguments */
 	cont1->b = b;
 	cont1->id = 0;
+    cont1->benchmark = 0;
 	cont2->b = b;
 	cont2->id = 1;
+    cont2->benchmark = 0;
 
 	for (i = 0; i < CTX_SWITCH_TRIALS; i++)  {
 
@@ -835,6 +842,7 @@ time_ctx_switch (void)
 
 		/* is this accurate? */
 		PRINT("CONTEXT SWITCH TRIAL %u %llu\n", i, (end-start)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL STEP %u %llu\n", i, (cont1->benchmark + cont2->benchmark)/(YIELD_COUNT*2));
 
 		JOIN_FUNC(t[0], NULL);
 		JOIN_FUNC(t[1], NULL);
@@ -1239,19 +1247,19 @@ run_benchmarks(void)
 {
     // CS 446 - here is where you add particular benchmarks to run
 
-    PRINT("Timing int 80\n");
-    time_int80();
-    PRINT("Timing syscall\n");
-    time_syscall();
-    PRINT("Timing thread creations and launches\n");
-    time_thread_both();
-    printf("Timing thread creations and launches\n");
-    time_thread_create();
-    time_thread_fork(10, 10);
+    // PRINT("Timing int 80\n");
+    // time_int80();
+    // PRINT("Timing syscall\n");
+    // time_syscall();
+    // PRINT("Timing thread creations and launches\n");
+    // time_thread_both();
+    // printf("Timing thread creations and launches\n");
+    // time_thread_create();
+    // time_thread_fork(10, 10);
     printf("Timing context switch \n");
     time_ctx_switch();
-    printf("Timing task create \n");
-    test_create_wait(10, 10);
+    // printf("Timing task create \n");
+    // test_create_wait(10, 10);
     
 }
 

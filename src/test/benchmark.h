@@ -62,7 +62,7 @@ typedef unsigned long ulong_t;
 #define BARRIER_WAIT(x) nk_barrier_wait(x)
 #define BARRIER_INIT(b, c) nk_barrier_init(b, c)
 #define BARRIER_DESTROY(b) nk_barrier_destroy(b)
-#define YIELD()         nk_yield()
+#define YIELD(x)         nk_yield(x)
 #define DELAY(x)        udelay(x)
 #define GETCPU()        my_cpu_id()
 

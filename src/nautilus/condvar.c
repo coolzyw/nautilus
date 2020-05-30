@@ -230,7 +230,7 @@ test3 (void * in, void ** out)
     nk_condvar_signal(c);
 
     while (nk_condvar_destroy(c) < 0) {
-        nk_yield();
+        nk_yield(0);
     }
     free(c);
 }

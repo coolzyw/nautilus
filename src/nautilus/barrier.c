@@ -307,7 +307,7 @@ nk_core_barrier_wait (void)
     }
 
     while (barrier->remaining != 0) {
-        nk_yield();
+        nk_yield(0);
     }
 
     return 0;
@@ -340,7 +340,7 @@ nk_core_barrier_arrive (void)
     atomic_dec(barrier->remaining);
 
     while (barrier->notify != 1) {
-        nk_yield();
+        nk_yield(0);
     }
 
     return 0;

@@ -39,7 +39,7 @@
  *
  */
 
-extern void nk_yield(void);
+extern uint64_t nk_yield(uint64_t benchmark);
 
 int
 nk_rwlock_init (nk_rwlock_t * l)

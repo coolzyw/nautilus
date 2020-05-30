@@ -435,7 +435,7 @@ int nk_msg_queue_push_timeout(struct nk_msg_queue *q, void *m, uint64_t timeout_
 	    return 0;
 	}
 
-	nk_sched_yield(0); // alternatively actually sleep here....
+	nk_sched_yield(0, 0); // alternatively actually sleep here....
 	now = nk_sched_get_realtime();
 
     } while ((now-start)<timeout_ns);
@@ -458,7 +458,7 @@ int nk_msg_queue_pull_timeout(struct nk_msg_queue *q, void **m, uint64_t timeout
 	    return 0;
 	}
 
-	nk_sched_yield(0); // alternatively actually sleep here....
+	nk_sched_yield(0, 0); // alternatively actually sleep here....
 	now = nk_sched_get_realtime();
 
     } while ((now-start)<timeout_ns);

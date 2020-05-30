@@ -61,7 +61,7 @@ int ndpc_create_preempt_thread(thread_func_t func,
 void ndpc_yield_preempt_thread()
 {
     DEBUG("yield_preempt_thread\n");
-    nk_yield();
+    nk_yield(0);
 }
 
 // Get own thread id

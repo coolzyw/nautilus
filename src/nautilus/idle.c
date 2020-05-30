@@ -98,7 +98,7 @@ idle (void * in, void ** out)
 #endif
 	    
 
-        nk_yield();
+        nk_yield(0);
 
 #ifdef NAUT_CONFIG_XEON_PHI
         udelay(1);

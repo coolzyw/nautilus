@@ -214,7 +214,7 @@ extern unsigned int acpi_tb_parse_root_table(acpi_physical_address);
 extern void time_thread_create();
 extern int nk_fs_init();
 extern short unsigned int nk_dequeue_scancode(struct nk_virtual_console *);
-extern void nk_yield();
+extern uint64_t nk_yield(uint64_t benchmark);
 typedef long unsigned int ulong_t;
 extern unsigned int multiboot_get_size(ulong_t);
 extern int __wctype_l();
@@ -505,7 +505,7 @@ extern long unsigned int nk_sched_get_realtime();
 extern int setvbuf(void *, char *, int, long unsigned int);
 typedef long unsigned int size_t;
 extern int strncasecmp(const char *, const char *, size_t);
-extern void nk_sched_yield();
+extern uint64_t nk_sched_yield();
 typedef long unsigned int uint64_t;
 extern int nk_sched_cpu_mug(int, uint64_t, long unsigned int *);
 extern long long int simple_strtoll(const char *, char * *, unsigned int);
@@ -1039,7 +1039,7 @@ static int naut_nk_dequeue_scancode(lua_State *L){
 	return 1; 
 }
 static int naut_nk_yield(lua_State *L){
-	nk_yield();
+	nk_yield(0);
 	return 1; 
 }
 static int naut_multiboot_get_size(lua_State *L){

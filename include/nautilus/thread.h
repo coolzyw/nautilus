@@ -105,7 +105,7 @@ void nk_set_thread_output(void * result);
 int nk_thread_name(nk_thread_id_t tid, char *name);
 
 // explicit yield (hides details of the scheduler)
-void nk_yield();
+uint64_t nk_yield(uint64_t benchmark);
 
 // Wait for a child or all children to exit
 // This includes forked threads

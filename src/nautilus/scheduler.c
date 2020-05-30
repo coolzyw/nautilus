@@ -63,6 +63,7 @@
 #include <nautilus/shell.h>
 #include <dev/apic.h>
 #include <dev/gpio.h>
+#define PRINT           printk
 
 // enforce lower limits on period and slice / sporadic size
 #define ENFORCE_LOWER_LIMITS 1
@@ -518,6 +519,16 @@ typedef struct nk_sched_thread_state {
 
 } rt_thread ;
 
+#define rdtscll(val)                    \
+    do {                        \
+    uint64_t tsc;                   \
+    uint32_t a, d;                  \
+    asm volatile("rdtsc" : "=a" (a), "=d" (d)); \
+    *(uint32_t *)&(tsc) = a;            \
+    *(uint32_t *)(((unsigned char *)&tsc) + 4) = d;   \
+    val = tsc;                  \
+    } while (0)
+
 static void       rt_thread_dump(rt_thread *thread, char *prefix);
 static int        rt_thread_admit(rt_scheduler *scheduler, rt_thread *thread, uint64_t now);
 static int        rt_thread_check_deadlines(rt_thread *t, rt_scheduler *scheduler, uint64_t now);
@@ -535,7 +546,7 @@ static void           set_timer(rt_scheduler *scheduler,
 				rt_thread *thread, 
 				uint64_t now);
 
-static void           handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state);
+static uint64_t           handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark);
 
 static inline uint64_t get_min_per(rt_priority_queue *runnable, rt_priority_queue *queue, rt_thread *thread);
 static inline uint64_t get_avg_per(rt_priority_queue *runnable, rt_priority_queue *pending, rt_thread *thread);
@@ -1371,7 +1382,7 @@ int nk_sched_make_runnable(struct nk_thread *thread, int cpu, int admit)
 
 void nk_sched_exit(spinlock_t *lock_to_release)
 {
-    handle_special_switch(EXITING,0,0,lock_to_release ? (void (*)(void*))spin_unlock : 0 ,(void*)lock_to_release);
+    handle_special_switch(EXITING,0,0,lock_to_release ? (void (*)(void*))spin_unlock : 0 ,(void*)lock_to_release, 0);
     // we should not come back!
     panic("Returned to finished thread!\n");
 }
@@ -2688,7 +2699,7 @@ int nk_sched_thread_change_constraints(struct nk_sched_constraints *constraints)
 	}
 	// we are now on the aperiodic run queue
 	// so we need to get running again with our new constraints
-	handle_special_switch(CHANGING,1,_local_flags,0,0);
+	handle_special_switch(CHANGING,1,_local_flags,0,0, 0);
 	// we've now released the lock, so reacquire
 	LOCAL_LOCK(scheduler);
     }
@@ -2715,7 +2726,7 @@ int nk_sched_thread_change_constraints(struct nk_sched_constraints *constraints)
 	// we are now aperioidic
 	// since we are again on the run queue
 	// we need to kick ourselves off the cp
-	handle_special_switch(CHANGING,1,_local_flags,0,0);
+	handle_special_switch(CHANGING,1,_local_flags,0,0, 0);
 	// when we come back, we note that we have failed
 	// we also have no lock
 	goto out_bad_no_unlock;
@@ -2727,7 +2738,7 @@ int nk_sched_thread_change_constraints(struct nk_sched_constraints *constraints)
 	DUMP_RT_PENDING(scheduler,"pending before handle special switch");
 	DUMP_APERIODIC(scheduler,"aperiodic before handle special switch");
 
-	handle_special_switch(CHANGING,1,_local_flags,0,0);
+	handle_special_switch(CHANGING,1,_local_flags,0,0, 0);
 
 	// we now have released lock and interrupts are back to prior
 
@@ -2995,10 +3006,11 @@ extern void nk_thread_switch_exit_helper(nk_thread_t *new, rt_status *statusp, r
 //   - local scheduler lock is released
 //   - interrupts are off in the thread we are switch from, and will be restored
 //     to the state of the thread we are switching to
-static void handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state)
+static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark)
 {
     int did_preempt_disable = 0;
     int no_switch=0;
+
 
     if (!preempt_is_disabled()) {
 	preempt_disable();
@@ -3032,8 +3044,20 @@ static void handle_special_switch(rt_status what, int have_lock, uint8_t flags, 
 
     c->sched_state->status = what;
 
-    // force a rescheduling pass even though preemption is off
-    n = _sched_need_resched(have_lock,1);
+    uint64_t duration = 0;
+    if (benchmark == 1) {
+        uint64_t start = 0;
+        rdtscll(start);
+        // force a rescheduling pass even though preemption is off
+        n = _sched_need_resched(have_lock,1);
+        uint64_t end = 0;
+        rdtscll(end);
+        duration = end - start;
+        // PRINT("TIME SPENT ON resched %lu cycles \n", end - start);
+    }
+    else {
+        n = _sched_need_resched(have_lock,1);
+    }
 
     // at this point, the scheduler has been updated and so we can
     // invoke the release callback
@@ -3090,7 +3114,7 @@ static void handle_special_switch(rt_status what, int have_lock, uint8_t flags, 
 	nk_thread_switch_exit_helper(n,&c->sched_state->status,REAPABLE);
 	ERROR("Returned from an exit context switch!\n");
 	panic("Returned from an exit context switch\n");
-	return;
+	return duration;
     }
     
 
@@ -3118,6 +3142,7 @@ static void handle_special_switch(rt_status what, int have_lock, uint8_t flags, 
     // and now we restore the interrupt state to 
     // what we had on entry
     irq_enable_restore(flags);
+    return duration;
 }
 
 /*
@@ -3127,9 +3152,9 @@ static void handle_special_switch(rt_status what, int have_lock, uint8_t flags, 
  * a thread yields only if it wants to remain runnable
  *
  */
-void nk_sched_yield(spinlock_t *lock_to_release)
+uint64_t nk_sched_yield(spinlock_t *lock_to_release, uint64_t benchmark)
 {
-    handle_special_switch(YIELDING,0,0,lock_to_release ? (void (*)(void *))spin_unlock : 0, (void*)lock_to_release);
+    return handle_special_switch(YIELDING,0,0,lock_to_release ? (void (*)(void *))spin_unlock : 0, (void*)lock_to_release, benchmark);
 }
 
 
@@ -3143,7 +3168,7 @@ void nk_sched_yield(spinlock_t *lock_to_release)
  */
 void nk_sched_sleep_extended(void (*release_callback)(void *), void *release_state)
 {
-    handle_special_switch(SLEEPING,0,0,release_callback,release_state);
+    handle_special_switch(SLEEPING,0,0,release_callback,release_state, 0);
 }
 
 // Basic sleep

@@ -267,7 +267,7 @@ STATIC void GC_wait_for_gc_completion(GC_bool wait_for_all)
             UNLOCK();
 
             //sched_yield();
-            nk_yield();
+            nk_yield(0);
             
             LOCK();
         }

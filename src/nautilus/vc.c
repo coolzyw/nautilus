@@ -1420,7 +1420,7 @@ static int start_list()
   
   while (!__sync_fetch_and_add(&vc_list_inited,0)) {
       // wait for vc list to be up
-      nk_yield();
+      nk_yield(0);
   }
 
   INFO("List launched\n");
@@ -1738,7 +1738,7 @@ int nk_vc_start_chardev_console(char *chardev)
     }
     
     while (!__sync_fetch_and_add(&c->inited,0)) {
-	nk_yield();
+	nk_yield(0);
 	// wait for console thread to start
     }
     
