@@ -37,8 +37,8 @@
 
 // these are volatiles to stop
 // compiler from optimizing the fork tests to the point of failure
-#define NUM_PASSES 10
-#define NUM_THREADS 512
+#define NUM_PASSES 2
+#define NUM_THREADS 128
 #define DEPTH 8
 
 struct test_arg {

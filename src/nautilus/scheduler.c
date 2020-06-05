@@ -174,6 +174,7 @@
 struct nk_sched_global_state {
     spinlock_t          lock;
     struct rt_list      *thread_list;
+    struct rt_list*     thread_list_by_cpu[32];//assume that max cpu number is 32
     uint64_t             num_threads;
     int                  reaping;
 };
@@ -957,30 +958,40 @@ struct nk_thread *nk_sched_reanimate(nk_stack_size_t min_stack_size,
     GLOBAL_LOCK();
 
     // start search from the oldest thread
-    rt_node *cur = global_sched_state.thread_list->head;
-
-    uint64_t count = 0;
+    // rt_node *cur = global_sched_state.thread_list->head;
+    // uint64_t count = 0;
+    // //TODO modify this to do better than linear scanning
+    // while (cur &&
+	//    !(cur->thread->status == REAPABLE &&
+	//      cur->thread->thread->status==NK_THR_EXITED &&
+	//      !cur->thread->thread->refcount &&
+	//      cur->thread->thread->stack_size >= min_stack_size &&
+	//      (placement_cpu<0 || cur->thread->thread->placement_cpu==placement_cpu))) {	
+	// //DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
+	// //      cur->thread->thread->is_idle ? "*idle*" ::q!
+	// //      cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
+	// cur=cur->next;
+	// count++;
+    // }
     
+    //new thread search algorithm for reanimation. If placement_cpu >= 0
+    rt_node* cur = global_sched_state.thread_list_by_cpu[placement_cpu]->head;
     while (cur &&
 	   !(cur->thread->status == REAPABLE &&
 	     cur->thread->thread->status==NK_THR_EXITED &&
 	     !cur->thread->thread->refcount &&
-	     cur->thread->thread->stack_size >= min_stack_size &&
-	     (placement_cpu<0 || cur->thread->thread->placement_cpu==placement_cpu))) {
-	
+	     cur->thread->thread->stack_size >= min_stack_size)){	
 	//DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
 	//      cur->thread->thread->is_idle ? "*idle*" ::q!
 	//      cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
 	cur=cur->next;
-	count++;
+	//count++;
     }
-    
-    
     rt_thread *rt = 0;
     
     
     if (cur) {
-	rt = rt_list_remove(global_sched_state.thread_list, cur);
+	rt = rt_list_remove(global_sched_state.thread_list_by_cpu[placement_cpu], cur);
 	global_sched_state.num_threads--;
 	DEBUG("Examined %lu threads before finding a matching one\n", count+1); 
     } else {
@@ -1121,6 +1132,13 @@ int nk_sched_thread_post_create(nk_thread_t * t)
 	GLOBAL_UNLOCK();
 	return -1;
     }
+
+    //place the thread in the per-cpu list for faster search
+    if (_rt_list_enqueue(global_sched_state.thread_list_by_cpu[t->placement_cpu], t->sched_state, n)) {
+	ERROR("Failed to add new thread to global thread list\n");
+	GLOBAL_UNLOCK();
+	return -1;
+    }
     global_sched_state.num_threads++;
 
     DEBUG("Post Create of thread %p (%d) [numthreads=%d]\n",
@@ -1146,6 +1164,12 @@ int nk_sched_thread_pre_destroy(nk_thread_t * t)
 	return -1;
     }
 
+    //delete the thread from the thread_list_by_cpu
+    // if (!(r=rt_list_remove(global_sched_state.thread_list_by_cpu[t->placement_cpu],t->sched_state->list))) {
+	// ERROR("Failed to remove thread from global list....\n");
+	// GLOBAL_UNLOCK();
+	// return -1;
+    // }
     global_sched_state.num_threads--;
     
     GLOBAL_UNLOCK();
@@ -2853,7 +2877,7 @@ int nk_sched_thread_move(struct nk_thread *t, int new_cpu, int block)
     return -1;
 }
 
-
+//TODO maybe we can have better victim selection algorithm??
 static int select_victim(int new_cpu)
 {
     int a,b;
@@ -4067,6 +4091,7 @@ static int shared_init(struct cpu *my_cpu, struct nk_sched_config *cfg)
     return -1;
 }
 
+
 static int init_global_state()
 {
     ZERO(&global_sched_state);
@@ -4074,6 +4099,12 @@ static int init_global_state()
     if (!global_sched_state.thread_list) { 
 	ERROR("Cannot allocate global thread list\n");
 	return -1;
+    }
+
+    //Lianke: initialize the thread list by placement cpu.
+    int num_cpus = nk_get_num_cpus();
+    for(int i = 0; i < num_cpus; i++) {
+        global_sched_state.thread_list_by_cpu[i] = rt_list_init();
     }
 
     spinlock_init(&global_sched_state.lock);
