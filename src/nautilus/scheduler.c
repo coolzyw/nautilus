@@ -981,9 +981,9 @@ struct nk_thread *nk_sched_reanimate(nk_stack_size_t min_stack_size,
 	     cur->thread->thread->status==NK_THR_EXITED &&
 	     !cur->thread->thread->refcount &&
 	     cur->thread->thread->stack_size >= min_stack_size)){	
-	//DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
-	//      cur->thread->thread->is_idle ? "*idle*" ::q!
-	//      cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
+	DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
+	     cur->thread->thread->is_idle ? "*idle*" ::q!
+	     cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
 	cur=cur->next;
 	//count++;
     }
