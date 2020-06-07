@@ -84,6 +84,10 @@ struct nk_sched_constraints {
     } ;
 } ;
 
+typedef struct bench_result {
+    uint64_t resheduling;
+} bench_result_t;
+
 // Call this on the BSP at boot time, before the APs are running
 int nk_sched_init(struct nk_sched_config *cfg);
 // Call this on the APs at boot time
@@ -156,7 +160,7 @@ void    nk_sched_sleep_extended(void (*release_callback)(void *), void *release_
 #define nk_sched_awaken(thread,cpu) nk_sched_make_runnable(thread,cpu,0)
 
 // Have the thread yield to another, if appropriate
-uint64_t              nk_sched_yield(spinlock_t *lock_to_release, uint64_t benchmark);
+bench_result_t              *nk_sched_yield(spinlock_t *lock_to_release, uint64_t benchmark);
 #define           nk_sched_schedule(lock_to_release) nk_sched_yield(lock_to_release, benchmark)
 
 // Thread exit - will not return!

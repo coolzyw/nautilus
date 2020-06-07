@@ -766,16 +766,16 @@ thread_switch_func FUNC_HDR
 
 	ready[t->id] = 1;
 
-    uint64_t benchmark = 0;
+	YIELD(0);
 
-	benchmark += YIELD(1);
-
-	while (!go) { benchmark += YIELD(1); }
+	while (!go) { YIELD(0); }
 //BARRIER_WAIT(t->b);
 
+    uint64_t benchmark = 0;
 	int i;
 	for (i = 0; i < YIELD_COUNT; i++) {
-		benchmark += YIELD(1);
+        bench_result_t * result = YIELD(1);
+		benchmark += result->resheduling;
 	}
 
 	done[t->id] = 1;
@@ -842,7 +842,7 @@ time_ctx_switch (void)
 
 		/* is this accurate? */
 		PRINT("CONTEXT SWITCH TRIAL %u %llu\n", i, (end-start)/(YIELD_COUNT*2));
-        PRINT("CONTEXT SWITCH TRIAL STEP %u %llu\n", i, (cont1->benchmark + cont2->benchmark)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in force_scheduler_pass %u %llu\n", i, (cont1->benchmark + cont2->benchmark)/(YIELD_COUNT*2));
 
 		JOIN_FUNC(t[0], NULL);
 		JOIN_FUNC(t[1], NULL);

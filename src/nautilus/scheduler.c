@@ -546,7 +546,7 @@ static void           set_timer(rt_scheduler *scheduler,
 				rt_thread *thread, 
 				uint64_t now);
 
-static uint64_t           handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark);
+static bench_result_t           *handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark);
 
 static inline uint64_t get_min_per(rt_priority_queue *runnable, rt_priority_queue *queue, rt_thread *thread);
 static inline uint64_t get_avg_per(rt_priority_queue *runnable, rt_priority_queue *pending, rt_thread *thread);
@@ -3006,7 +3006,8 @@ extern void nk_thread_switch_exit_helper(nk_thread_t *new, rt_status *statusp, r
 //   - local scheduler lock is released
 //   - interrupts are off in the thread we are switch from, and will be restored
 //     to the state of the thread we are switching to
-static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark)
+
+static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint8_t flags, void (*release_callback)(void*), void *release_state, uint64_t benchmark)
 {
     int did_preempt_disable = 0;
     int no_switch=0;
@@ -3045,6 +3046,7 @@ static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t fla
     c->sched_state->status = what;
 
     uint64_t duration = 0;
+    bench_result_t * result = NULL;
     if (benchmark == 1) {
         uint64_t start = 0;
         rdtscll(start);
@@ -3053,6 +3055,8 @@ static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t fla
         uint64_t end = 0;
         rdtscll(end);
         duration = end - start;
+        result = malloc(sizeof(bench_result_t));
+        result->resheduling = duration;
         // PRINT("TIME SPENT ON resched %lu cycles \n", end - start);
     }
     else {
@@ -3114,7 +3118,7 @@ static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t fla
 	nk_thread_switch_exit_helper(n,&c->sched_state->status,REAPABLE);
 	ERROR("Returned from an exit context switch!\n");
 	panic("Returned from an exit context switch\n");
-	return duration;
+	return result;
     }
     
 
@@ -3142,7 +3146,7 @@ static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t fla
     // and now we restore the interrupt state to 
     // what we had on entry
     irq_enable_restore(flags);
-    return duration;
+    return result;
 }
 
 /*
@@ -3152,7 +3156,7 @@ static uint64_t handle_special_switch(rt_status what, int have_lock, uint8_t fla
  * a thread yields only if it wants to remain runnable
  *
  */
-uint64_t nk_sched_yield(spinlock_t *lock_to_release, uint64_t benchmark)
+bench_result_t *nk_sched_yield(spinlock_t *lock_to_release, uint64_t benchmark)
 {
     return handle_special_switch(YIELDING,0,0,lock_to_release ? (void (*)(void *))spin_unlock : 0, (void*)lock_to_release, benchmark);
 }

@@ -541,7 +541,7 @@ nk_wake_waiters (void)
     nk_wait_queue_wake_all(me->waitq);
 }
 
-uint64_t nk_yield(uint64_t benchmark)
+bench_result_t *nk_yield(uint64_t benchmark)
 {
     struct nk_thread *me = get_cur_thread();
 
