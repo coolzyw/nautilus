@@ -3012,16 +3012,32 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     int did_preempt_disable = 0;
     int no_switch=0;
 
+    // store all timing info
+    bench_result_t * result = malloc(sizeof(bench_result_t));
 
     if (!preempt_is_disabled()) {
-	preempt_disable();
-	did_preempt_disable = 1;
+        uint64_t preempt_start = 0;
+        rdtscll(preempt_start);
+        preempt_disable();
+        did_preempt_disable = 1;
+        uint64_t preempt_end = 0;
+        rdtscll(preempt_end);
+        result->preempt_disable = preempt_end - preempt_start;
     }
 
     if (!have_lock) { 
 	// we always want a local critical section here
-	flags = irq_disable_save();
+        uint64_t get_lock_start = 0;
+        rdtscll(get_lock_start);
+        flags = irq_disable_save();
+        uint64_t get_lock_end = 0;
+        rdtscll(get_lock_end);
+        result->get_lock = get_lock_end - get_lock_start;
     }
+
+    
+    uint64_t get_start = 0;
+    rdtscll(get_start);
 
     nk_thread_t * c    = get_cur_thread();
     rt_thread   * rt_c = c->sched_state;
@@ -3029,6 +3045,12 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     nk_thread_t * n = NULL;
     struct sys_info *sys = per_cpu_get(system);
     rt_scheduler *s = sys->cpus[my_cpu_id()]->sched_state;
+
+    uint64_t get_end = 0;
+    rdtscll(get_end);
+    result->get_scheduler_info = get_end - get_start;
+
+
 
 
     ASSERT(what==SLEEPING || what==YIELDING || what==EXITING || what==CHANGING);
@@ -3046,7 +3068,6 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     c->sched_state->status = what;
 
     uint64_t duration = 0;
-    bench_result_t * result = NULL;
     if (benchmark == 1) {
         uint64_t start = 0;
         rdtscll(start);
@@ -3055,7 +3076,6 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
         uint64_t end = 0;
         rdtscll(end);
         duration = end - start;
-        result = malloc(sizeof(bench_result_t));
         result->resheduling = duration;
         // PRINT("TIME SPENT ON resched %lu cycles \n", end - start);
     }
@@ -3066,7 +3086,12 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     // at this point, the scheduler has been updated and so we can
     // invoke the release callback
     if (release_callback) {
-	release_callback(release_state);
+        uint64_t callback_start = 0;
+        rdtscll(callback_start);
+	    release_callback(release_state);
+        uint64_t callback_end = 0;
+        rdtscll(callback_end);
+        result->release_callback = callback_end - callback_start;
     }
 
     if (!n) {
@@ -3097,6 +3122,10 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     DEBUG("Switching to %llu \"%s\"\n",
 	  n->tid, n->name);
 
+    uint64_t release_start = 0;
+    uint64_t release_end = 0;
+    rdtscll(release_start);
+
     if (have_lock) {
 	// release the lock if we had it on entry
 	// but keep interrupts off since we want to continue
@@ -3108,6 +3137,9 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     // Now preemption is enabled, but interrupts are 
     // still off, so we will continue to run to completion
     preempt_reset();
+
+    rdtscll(release_end);
+    result->release_enable = release_end - release_start;
 
     if (what==EXITING) {
 	// We need to make the exit transition extremely cleanly as we can
@@ -3127,11 +3159,19 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     // our context will indicate interrupts off
     // when we switch away, we will leave rflags.if=0 on
     // the stack and preemption enabled
+    uint64_t switch_start = 0;
+    rdtscll(switch_start);
     nk_thread_switch(n);
+
+    uint64_t switch_end = 0;
+    rdtscll(switch_end);
+    result->switch_time = switch_end - switch_start;
     
     DEBUG("After return from switch (back in %llu \"%s\")\n", c->tid, c->name);
 
- out_good:
+ out_good: ;
+    uint64_t restore_start;
+    rdtscll(restore_start);
     c->sched_state->status = last_status;
     if (have_lock) {
 	spin_unlock(&s->lock);
@@ -3146,6 +3186,9 @@ static bench_result_t *handle_special_switch(rt_status what, int have_lock, uint
     // and now we restore the interrupt state to 
     // what we had on entry
     irq_enable_restore(flags);
+    uint64_t restore_end;
+    rdtscll(restore_end);
+    result->restore = restore_end - restore_start;
     return result;
 }
 

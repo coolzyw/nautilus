@@ -755,7 +755,14 @@ static volatile int go;
 typedef struct switch_cont {
 	BARRIER_T * b;
 	unsigned char id; /* 0 or 1 */
-    uint64_t benchmark;
+    uint64_t preempt_disable;
+    uint64_t get_lock;
+    uint64_t resheduling;
+    uint64_t get_scheduler_info;
+    uint64_t release_callback;
+    uint64_t restore;
+    uint64_t switch_time;
+    uint64_t release_enable;
 } switch_cont_t;
 
 
@@ -771,16 +778,37 @@ thread_switch_func FUNC_HDR
 	while (!go) { YIELD(0); }
 //BARRIER_WAIT(t->b);
 
-    uint64_t benchmark = 0;
+    uint64_t preempt_disable = 0;
+    uint64_t get_lock = 0;
+    uint64_t resheduling = 0;
+    uint64_t get_scheduler_info = 0;
+    uint64_t release_callback = 0;
+    uint64_t restore = 0;
+    uint64_t switch_time = 0;
+    uint64_t release_enable = 0;
 	int i;
 	for (i = 0; i < YIELD_COUNT; i++) {
         bench_result_t * result = YIELD(1);
-		benchmark += result->resheduling;
+        preempt_disable += result->preempt_disable;
+        get_lock += result->get_lock;
+		resheduling += result->resheduling;
+        release_callback += result->release_callback;
+        get_scheduler_info += result->get_scheduler_info;
+        restore += result->restore;
+        switch_time += result->switch_time;
+        release_enable += result->release_enable;
 	}
 
 	done[t->id] = 1;
 
-    t->benchmark = benchmark;
+    t->preempt_disable = preempt_disable;
+    t->get_lock = get_lock;
+    t->resheduling = resheduling;
+    t->release_callback = release_callback;
+    t->get_scheduler_info = get_scheduler_info;
+    t->restore = restore;
+    t->switch_time = switch_time;
+    t->release_enable = release_enable;
 
 	RETURN;
 }
@@ -802,10 +830,26 @@ time_ctx_switch (void)
 	/* setup thread arguments */
 	cont1->b = b;
 	cont1->id = 0;
-    cont1->benchmark = 0;
+    cont1->preempt_disable = 0;
+    cont1->get_lock = 0;
+    cont1->resheduling = 0;
+    cont1->release_callback = 0;
+    cont1->get_scheduler_info = 0;
+    cont1->restore = 0;
+    cont1->switch_time = 0;
+    cont1->release_enable = 0;
+
+
 	cont2->b = b;
 	cont2->id = 1;
-    cont2->benchmark = 0;
+    cont2->preempt_disable = 0;
+    cont2->get_lock = 0;
+    cont2->resheduling = 0;
+    cont2->release_callback = 0;
+    cont2->get_scheduler_info = 0;
+    cont2->restore = 0;
+    cont2->switch_time = 0;
+    cont2->release_enable = 0;
 
 	for (i = 0; i < CTX_SWITCH_TRIALS; i++)  {
 
@@ -842,7 +886,14 @@ time_ctx_switch (void)
 
 		/* is this accurate? */
 		PRINT("CONTEXT SWITCH TRIAL %u %llu\n", i, (end-start)/(YIELD_COUNT*2));
-        PRINT("CONTEXT SWITCH TRIAL Partition in force_scheduler_pass %u %llu\n", i, (cont1->benchmark + cont2->benchmark)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in disable_preempt %u %llu\n", i, (cont1->preempt_disable + cont2->preempt_disable)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in get_lock %u %llu\n", i, (cont1->get_lock + cont2->get_lock)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in get_scheduler_info %u %llu\n", i, (cont1->get_scheduler_info + cont2->get_scheduler_info)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in force_scheduler_pass %u %llu\n", i, (cont1->resheduling + cont2->resheduling)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in release_callback %u %llu\n", i, (cont1->release_callback + cont2->release_callback)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in release_lock_enable_preempt %u %llu\n", i, (cont1->release_enable + cont2->release_enable)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in context_switch %u %llu\n", i, (cont1->switch_time + cont2->switch_time)/(YIELD_COUNT*2));
+        PRINT("CONTEXT SWITCH TRIAL Partition in restore %u %llu\n", i, (cont1->restore + cont2->restore)/(YIELD_COUNT*2));
 
 		JOIN_FUNC(t[0], NULL);
 		JOIN_FUNC(t[1], NULL);

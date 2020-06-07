@@ -85,7 +85,14 @@ struct nk_sched_constraints {
 } ;
 
 typedef struct bench_result {
+    uint64_t preempt_disable;
+    uint64_t get_lock;
+    uint64_t get_scheduler_info;
     uint64_t resheduling;
+    uint64_t release_callback;
+    uint64_t release_enable;
+    uint64_t restore;
+    uint64_t switch_time;
 } bench_result_t;
 
 // Call this on the BSP at boot time, before the APs are running
