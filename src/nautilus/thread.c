@@ -356,7 +356,7 @@ nk_thread_create (nk_thread_fun_t fun,
 	    return -EINVAL;
 	}
       end = rdtsc();
-      nk_vc_printf("make our own thread-cycle count = %d\n", end-start);
+      //nk_vc_printf("make our own thread-cycle count = %d\n", end-start);
     }
 
   // from this point, if we are using a reanimated thread, and
@@ -368,7 +368,7 @@ nk_thread_create (nk_thread_fun_t fun,
         goto out_err;
     }
     end = rdtsc();
-    nk_vc_printf("thread init-cycle count = %d\n", end-start);
+    //nk_vc_printf("thread init-cycle count = %d\n", end-start);
 
 
     start = rdtsc();
@@ -394,7 +394,7 @@ nk_thread_create (nk_thread_fun_t fun,
     }
     end = rdtsc();
 
-    nk_vc_printf("move thread to scheduler-cycle count = %d\n\n", end-start);
+    //nk_vc_printf("move thread to scheduler-cycle count = %d\n\n", end-start);
     THREAD_DEBUG("Thread create creating new thread with t=%p, tid=%lu\n", t, t->tid);
 
     return 0;
