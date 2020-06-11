@@ -986,21 +986,15 @@ struct nk_thread *nk_sched_reanimate(nk_stack_size_t min_stack_size,
     //new thread search algorithm for reanimation. If placement_cpu >= 0
     rt_node *cur = global_sched_state.thread_list_by_cpu[placement_cpu]->head;
     while (cur &&
-           !(cur->thread->status == REAPABLE &&
-             cur->thread->thread->status == NK_THR_EXITED &&
-             !cur->thread->thread->refcount))
-    {
-        cur = cur->next;
-    }
-
-    // DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
-    //      cur->thread->thread->is_idle ? "*idle*" ::q!
-    //      cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
-
-    if (cur->thread->thread->stack_size < min_stack_size)
-    {
-        //the largest avaliable dead thread body does not have enough stack size
-        return 0;
+	   !(cur->thread->status == REAPABLE &&
+	     cur->thread->thread->status==NK_THR_EXITED &&
+	     !cur->thread->thread->refcount &&
+	     cur->thread->thread->stack_size >= min_stack_size)){	
+	DEBUG("Skipping thread %p (%lu) \"%s\"\n", cur->thread->thread, cur->thread->thread->tid,
+	     cur->thread->thread->is_idle ? "*idle*" ::q!
+	     cur->thread->thread->name[0] ? cur->thread->thread->name : "(no name)");
+	cur=cur->next;
+	//count++;
     }
     rt_thread *rt = 0;
 
@@ -1535,20 +1529,20 @@ static int _rt_list_enqueue(rt_list *l, rt_thread *t, rt_node *newnode)
         return 0;
     }
 
-    // rt_node *n = l->tail;
+    rt_node *n = l->tail;
 
-    // l->tail = newnode;
-    // l->tail->prev = n;
-    // n->next = l->tail;
-    // t->list = l->tail;
-    rt_node *n = l->head;
-    while (n != NULL && n->thread->thread->stack_size > newnode->thread->thread->stack_size)
-    {
-        n = n->next;
-    }
-    newnode->next = n;
-    newnode->prev = n->prev;
-    n->prev = newnode;
+    l->tail = newnode;
+    l->tail->prev = n;
+    n->next = l->tail;
+    t->list = l->tail;
+    // rt_node *n = l->head;
+    // while (n != NULL && n->thread->thread->stack_size > newnode->thread->thread->stack_size)
+    // {
+    //     n = n->next;
+    // }
+    // newnode->next = n;
+    // newnode->prev = n->prev;
+    // n->prev = newnode;
 
     return 0;
 }
